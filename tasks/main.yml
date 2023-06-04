@@ -1,0 +1,110 @@
+# https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/deployment-guides/ansible/#5-create-the-ansible-playbook
+---
+- name: Install cloudflared
+  tags:
+    - cloudflared
+    - cloudflared_install
+  block:
+    - name: Get cloudflared version from rpm
+      shell: rpm -qa cloudflared --queryformat %{VERSION}
+      register: command_result
+
+    - name: Set cloudflared_installed_version
+      set_fact:
+        cloudflared_installed_version: "{{ command_result.stdout_lines[0] }}"
+      when: command_result.stdout_lines[0] is defined
+
+    - name: Download the cloudflared Linux package
+      get_url:
+        url: https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-x86_64.rpm
+        dest: /tmp
+
+    - name: Depackage cloudflared
+      become: yes
+      shell: rpm -Uvh --force /tmp/cloudflared-linux-x86_64.rpm
+  when: cloudflared_installed_version is not defined
+
+- name: Set up tunnel if neccesary
+  tags:
+    - cloudflared
+    - cloudflared_create_tunnel
+  block:
+    # https://developers.cloudflare.com/api/operations/cloudflare-tunnel-get-a-cloudflare-tunnel
+    - name: Get tunnel data
+      uri:
+        url: "https://api.cloudflare.com/client/v4/accounts/{{ cloudflared_tunnel_credentials.account_tag }}/cfd_tunnel?name={{ cloudflared_tunnel_name }}&is_deleted=false"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ cloudflared_tunnel_credentials.api_token }}"
+        status_code: 200
+      register: cloudflared_tunnel_get
+
+    - name: Extract tunnel id from get response
+      set_fact:
+        cloudflared_tunnel_id: "{{ cloudflared_tunnel_get.json.result[0].id }}"
+      when: cloudflared_tunnel_get.json.result[0] is defined
+
+    # https://developers.cloudflare.com/api/operations/cloudflare-tunnel-create-a-cloudflare-tunnel
+    - name: Create tunnel
+      uri:
+        url: "https://api.cloudflare.com/client/v4/accounts/{{ cloudflared_tunnel_credentials.account_tag }}/cfd_tunnel"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ cloudflared_tunnel_credentials.api_token }}"
+        body:
+          name: "{{ cloudflared_tunnel_name }}"
+          tunnel_secret: "{{ cloudflared_tunnel_credentials.secret }}"
+          config_src: local
+        body_format: json
+        status_code: 200
+      register: cloudflared_tunnel_setup
+      when: cloudflared_tunnel_id is not defined
+
+    - name: Extract tunnel id from create response
+      set_fact:
+        cloudflared_tunnel_id: "{{ cloudflared_tunnel_setup.json.result.id }}"
+      when: cloudflared_tunnel_id is not defined
+
+- name: Set up cloudflared config
+  tags:
+    - cloudflared
+    - cloudflared_first_time_setup
+  block:
+    - name: Create cloudflared config directory
+      become: yes
+      tags:
+        - cloudflared
+      file:
+        path: "{{ cloudflared_config_dir }}"
+        state: directory
+        mode: 0755
+        recurse: yes
+
+    - ansible.builtin.include_tasks:
+        file: config.yml
+
+    - ansible.builtin.include_tasks:
+        file: dns.yml
+      when: cloudflared_tunnel_dns_setup is true
+
+    - name: Create the tunnel credentials file for cloudflared.
+      copy:
+        dest: "{{ cloudflared_config_dir }}/cert-{{ cloudflared_tunnel_id }}.json"
+        content: |
+          {
+            "AccountTag"   : "{{ cloudflared_tunnel_credentials.account_tag | quote }}",
+            "TunnelID"     : "{{ cloudflared_tunnel_id | quote }}",
+            "TunnelName"   : "{{ cloudflared_tunnel_name | quote }}",
+            "TunnelSecret" : "{{ cloudflared_tunnel_credentials.secret | quote }}"
+          }
+
+- name: Populate service facts
+  tags:
+    - cloudflared
+  ansible.builtin.service_facts:
+
+- name: Install cloudflared as a systemd service
+  tags:
+    - cloudflared
+  shell: cloudflared service install
+  when: not 'cloudflared.service' in services

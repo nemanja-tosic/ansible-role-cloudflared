@@ -1,0 +1,22 @@
+---
+- name: Config
+  tags:
+    - cloudflared
+    - cloudflared_ingress
+  block:
+    - name: Read current tunnel config
+      ansible.builtin.slurp:
+        src: "{{ cloudflared_config_file }}"
+      register: config
+      when: cloudflared_tunnel_id is not defined
+
+    - name: Extract tunnel ID from the current config
+      set_fact:
+        cloudflared_tunnel_id: "{{ (config.content | b64decode | from_yaml).tunnel }}"
+      when: cloudflared_tunnel_id is not defined
+
+    - name: Update the config
+      ansible.builtin.template:
+        src: config.yml.j2
+        dest: "{{ cloudflared_config_file }}"
+      notify: Restart cloudflared

@@ -1,0 +1,12 @@
+tunnel: "{{ cloudflared_tunnel_id }}"
+credentials-file: "{{ cloudflared_config_dir }}/cert-{{ cloudflared_tunnel_id }}.json"
+logfile: "/var/log/cloudflared-{{ cloudflared_tunnel_id }}.log"
+loglevel: info
+warp-routing:
+  enabled: true
+ingress:
+  {%+ for item in cloudflared_ingress %}
+  - hostname: "{{ item.hostname }}"
+      service: "{{ item.service }}"
+  {% endfor %}
+  - service: http_status:404
