@@ -108,3 +108,9 @@
     - cloudflared
   shell: cloudflared service install
   when: not 'cloudflared.service' in services
+
+- name: Update cloudflared update timer
+  ansible.builtin.systemd:
+    name: cloudflared-update.timer
+    state: started
+    enabled: true
