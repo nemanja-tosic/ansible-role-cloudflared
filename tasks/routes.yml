@@ -1,0 +1,47 @@
+---
+- name: Routes
+  tags:
+    - cloudflared
+    - cloudflared_routes
+  block:
+    - ansible.builtin.include_tasks:
+        file: config.yml
+
+    - name: Get tunnel routes
+      uri:
+        url: "{{ cloudflared_api_routes }}?tunnel_id={{ cloudflared_tunnel_id }}&is_deleted=false"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ cloudflared_tunnel_credentials.api_token }}"
+        status_code: 200
+      register: routes
+
+    - name: Extract tunnel routes
+      set_fact:
+        cloudflared_routes: "{{ routes.json.result }}"
+
+    - name: Add missing tunnel routes
+      uri:
+        url: "{{ cloudflared_api_routes }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ cloudflared_tunnel_credentials.api_token }}"
+        status_code: 200
+        body_format: json
+        body:
+          network: "{{ item.network }}"
+          tunnel_id: "{{ cloudflared_tunnel_id }}"
+      loop: "{{ cloudflared_private_network | json_query(missing_routes_query) }}"
+      vars:
+        missing_routes_query: "[?!contains({{ cloudflared_routes | map(attribute='network') + [''] }}, network)]"
+
+    - name: Remove unused tunnel routes
+      uri:
+        url: "{{ cloudflared_api_routes }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ cloudflared_tunnel_credentials.api_token }}"
+        status_code: 200
+      loop: "{{ cloudflared_routes | json_query(removed_routes_query) }}"
+      vars:
+        removed_routes_query: "[?!contains({{ cloudflared_private_network | map(attribute='network') + [''] }}, network)]"

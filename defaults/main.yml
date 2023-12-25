@@ -5,4 +5,9 @@ cloudflared_tunnel_credentials: "{{ vault_cloudflared_tunnel_credentials }}"
 cloudflared_config_dir: /etc/cloudflared
 cloudflared_config_file: "{{ cloudflared_config_dir }}/config.yml"
 cloudflared_ingress: []
+cloudflared_private_network: []
 cloudflared_tunnel_dns_setup: true
+cloudflared_tunnel_routes_setup: true
+
+cloudflared_api_url: https://api.cloudflare.com/client/v4
+cloudflared_api_routes: "{{ cloudflared_api_url }}/accounts/{{ cloudflared_tunnel_credentials.account_tag }}/teamnet/routes"

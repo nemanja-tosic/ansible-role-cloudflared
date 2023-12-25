@@ -4,6 +4,20 @@
     - cloudflared
     - cloudflared_dns
   block:
+    - ansible.builtin.include_tasks:
+        file: config.yml
+
+    - name: Update public hostnames config
+      blockinfile:
+        path: /etc/cloudflared/config.yml
+        marker: "# {mark} {{ item.hostname }}"
+        insertafter: "ingress:"
+        block: |2
+              - hostname: "{{ item.hostname }}"
+                service: "{{ item.service }}"
+      loop: "{{ cloudflared_ingress }}"
+      notify: Restart cloudflared
+
     - name: Get dns records
       uri:
         url: "https://api.cloudflare.com/client/v4/zones/{{ cloudflared_tunnel_zone }}/dns_records"
@@ -59,13 +73,14 @@
             content != `{{ cloudflared_tunnel_url }}`
           ]
 
-    - name: Remove unused records
-      uri:
-        url: "https://api.cloudflare.com/client/v4/zones/{{ cloudflared_tunnel_zone }}/dns_records/{{ item.id }}"
-        method: DELETE
-        headers:
-          Authorization: "Bearer {{ cloudflared_tunnel_credentials.api_token }}"
-        status_code: 200
-      loop: "{{ cloudflared_records | json_query(removed_hostnames_query) }}"
-      vars:
-        removed_hostnames_query: "[?!contains({{ cloudflared_ingress | map(attribute='hostname') + [''] }}, name)]"
+# TODO: find a way to find out which records are not used anymore
+#    - name: Remove unused records
+#      uri:
+#        url: "https://api.cloudflare.com/client/v4/zones/{{ cloudflared_tunnel_zone }}/dns_records/{{ item.id }}"
+#        method: DELETE
+#        headers:
+#          Authorization: "Bearer {{ cloudflared_tunnel_credentials.api_token }}"
+#        status_code: 200
+#      loop: "{{ cloudflared_records | json_query(removed_hostnames_query) }}"
+#      vars:
+#        removed_hostnames_query: "[?!contains({{ cloudflared_ingress | map(attribute='hostname') + [''] }}, name)]"

@@ -24,7 +24,7 @@
       shell: rpm -Uvh --force /tmp/cloudflared-linux-x86_64.rpm
   when: cloudflared_installed_version is not defined
 
-- name: Set up tunnel if neccesary
+- name: Set up tunnel
   tags:
     - cloudflared
     - cloudflared_create_tunnel
@@ -65,27 +65,19 @@
         cloudflared_tunnel_id: "{{ cloudflared_tunnel_setup.json.result.id }}"
       when: cloudflared_tunnel_id is not defined
 
-- name: Set up cloudflared config
-  tags:
-    - cloudflared
-    - cloudflared_first_time_setup
-  block:
     - name: Create cloudflared config directory
       become: yes
-      tags:
-        - cloudflared
       file:
         path: "{{ cloudflared_config_dir }}"
         state: directory
         mode: 0755
         recurse: yes
 
-    - ansible.builtin.include_tasks:
-        file: config.yml
-
-    - ansible.builtin.include_tasks:
-        file: dns.yml
-      when: cloudflared_tunnel_dns_setup is true
+    - name: Create the config
+      ansible.builtin.template:
+        src: config.yml.j2
+        dest: "{{ cloudflared_config_file }}"
+      notify: Restart cloudflared
 
     - name: Create the tunnel credentials file for cloudflared.
       copy:
@@ -98,19 +90,37 @@
             "TunnelSecret" : "{{ cloudflared_tunnel_credentials.secret | quote }}"
           }
 
-- name: Populate service facts
+- name: Set up public hostnames
   tags:
     - cloudflared
-  ansible.builtin.service_facts:
+    - cloudflared_public_hostnames
+  block:
+    - ansible.builtin.include_tasks:
+        file: dns.yml
+      when: cloudflared_tunnel_dns_setup is true
 
-- name: Install cloudflared as a systemd service
+- name: Set up private networks
   tags:
     - cloudflared
-  shell: cloudflared service install
-  when: not 'cloudflared.service' in services
+    - cloudflared_private_networks
+  block:
+    - ansible.builtin.include_tasks:
+        file: routes.yml
+      when: cloudflared_tunnel_routes_setup is true
 
-- name: Update cloudflared update timer
-  ansible.builtin.systemd:
-    name: cloudflared-update.timer
-    state: started
-    enabled: true
+- name: Install service
+  tags:
+    - cloudflared
+  block:
+    - name: Populate service facts
+      ansible.builtin.service_facts:
+
+    - name: Install cloudflared as a systemd service
+      shell: cloudflared service install
+      when: not 'cloudflared.service' in services
+
+    - name: Update cloudflared update timer
+      ansible.builtin.systemd:
+        name: cloudflared-update.timer
+        state: started
+        enabled: true
