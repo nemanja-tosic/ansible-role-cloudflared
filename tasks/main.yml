@@ -4,10 +4,12 @@
   tags:
     - cloudflared
     - cloudflared_install
+  when: ansible_os_family == 'RedHat'
   block:
     - name: Get cloudflared version from rpm
       shell: rpm -qa cloudflared --queryformat %{VERSION}
       register: command_result
+      changed_when: false
 
     - name: Set cloudflared_installed_version
       set_fact:
@@ -18,11 +20,12 @@
       get_url:
         url: https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-x86_64.rpm
         dest: /tmp
+      when: cloudflared_installed_version is not defined
 
     - name: Depackage cloudflared
       become: yes
       shell: rpm -Uvh --force /tmp/cloudflared-linux-x86_64.rpm
-  when: cloudflared_installed_version is not defined
+      when: cloudflared_installed_version is not defined
 
 - name: Set up tunnel
   tags:
@@ -77,6 +80,7 @@
       ansible.builtin.template:
         src: config.yml.j2
         dest: "{{ cloudflared_config_file }}"
+        force: no
       notify: Restart cloudflared
 
     - name: Create the tunnel credentials file for cloudflared.
