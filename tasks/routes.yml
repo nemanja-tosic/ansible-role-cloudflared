@@ -35,13 +35,13 @@
       vars:
         missing_routes_query: "[?!contains({{ cloudflared_routes | map(attribute='network') + [''] }}, network)]"
 
-    - name: Remove unused tunnel routes
-      uri:
-        url: "{{ cloudflared_api_routes }}"
-        method: DELETE
-        headers:
-          Authorization: "Bearer {{ cloudflared_tunnel_credentials.api_token }}"
-        status_code: 200
-      loop: "{{ cloudflared_routes | json_query(removed_routes_query) }}"
-      vars:
-        removed_routes_query: "[?!contains({{ cloudflared_private_network | map(attribute='network') + [''] }}, network)]"
+#    - name: Remove unused tunnel routes
+#      uri:
+#        url: "{{ cloudflared_api_routes }}"
+#        method: DELETE
+#        headers:
+#          Authorization: "Bearer {{ cloudflared_tunnel_credentials.api_token }}"
+#        status_code: 200
+#      loop: "{{ cloudflared_routes | json_query(removed_routes_query) }}"
+#      vars:
+#        removed_routes_query: "[?!contains({{ cloudflared_private_network | map(attribute='network') + [''] }}, network)]"

@@ -33,9 +33,10 @@
 
     - name: Extract cloudflared controlled dns records
       set_fact:
-        cloudflared_records: "{{ records.json.result | json_query(query) }}"
-      vars:
-        query: "[?contains(tags, `{{ cloudflared_tunnel_name }}`)]"
+        cloudflared_records: "{{ records.json.result }}"
+#        cloudflared_records: "{{ records.json.result | json_query(query) }}"
+#      vars:
+#        query: "[?contains(tags, `{{ cloudflared_tunnel_name }}`)]"
 
     # https://developers.cloudflare.com/api/operations/dns-records-for-a-zone-create-dns-record
     - name: Add missing zones
@@ -51,8 +52,8 @@
           name: "{{ item.hostname }}"
           content: "{{ cloudflared_tunnel_url }}"
           proxied: true
-          tags:
-            - "{{ cloudflared_tunnel_name }}"
+#          tags:
+#            - "{{ cloudflared_tunnel_name }}"
       loop: "{{ cloudflared_ingress | json_query(missing_hostnames_query) }}"
       vars:
         missing_hostnames_query: "[?!contains({{ cloudflared_records | map(attribute='name') + [''] }}, hostname)]"
@@ -67,8 +68,8 @@
         body_format: json
         body:
           content: "{{ cloudflared_tunnel_url }}"
-          tags:
-            - "{{ cloudflared_tunnel_name }}"
+#          tags:
+#            - "{{ cloudflared_tunnel_name }}"
       loop: "{{ cloudflared_records | json_query(updated_hostnames_query) }}"
       vars:
         updated_hostnames_query: >
