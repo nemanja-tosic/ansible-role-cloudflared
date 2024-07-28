@@ -15,6 +15,10 @@
         block: |2
               - hostname: "{{ item.hostname }}"
                 service: "{{ item.service }}"
+                originRequest:
+                {% for key, value in (item.originRequest | default({})).items() %}
+                  {{ key }}: {{ value | to_nice_json }}
+                {% endfor %}
       loop: "{{ cloudflared_ingress }}"
       notify: Restart cloudflared
 
