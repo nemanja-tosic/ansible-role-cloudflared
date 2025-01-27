@@ -10,11 +10,14 @@
     - name: Update public hostnames config
       blockinfile:
         path: /etc/cloudflared/config.yml
-        marker: "# {mark} {{ item.hostname }}"
+        marker: "# {mark} {{ item.hostname }}{{ item.path | default('') }}"
         insertafter: "ingress:"
         block: |2
               - hostname: "{{ item.hostname }}"
                 service: "{{ item.service }}"
+                {% if item.path is defined -%}
+                path: "{{ item.path }}"
+                {% endif -%}
                 originRequest:
                 {% for key, value in (item.originRequest | default({})).items() %}
                   {{ key }}: {{ value | to_nice_json }}
